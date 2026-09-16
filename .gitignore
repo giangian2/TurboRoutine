@@ -1,0 +1,26 @@
+# --- build output -------------------------------------------------------
+/bin/
+/build/
+*.o
+*.a
+*.so
+*.d
+
+# --- debugging / profiling ----------------------------------------------
+*.dSYM/
+core
+vgcore.*
+callgrind.out.*
+perf.data*
+
+# --- generated output ---------------------------------------------------
+# out/ holds everything a run writes (out/profile/ callgrind data):
+# regenerable, never committed.
+/out/
+
+# --- editors / OS -------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
