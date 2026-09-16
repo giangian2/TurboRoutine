@@ -1,4 +1,4 @@
-![TurboRoutine logo](./logo.svg)
+![TurboRoutine logo](./logo.png)
 
 # TurboRoutine
 
