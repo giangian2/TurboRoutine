@@ -21,7 +21,7 @@ LDLIBS  = -pthread
 
 # library sources (main.c is NOT part of the library)
 SRC = 
-ASM = 
+ASM = src/coro_x86_64.S
 HDR = $(wildcard include/*.h)
 OBJ = $(SRC:src/%.c=build/%.o) $(ASM:src/%.S=build/%.o)
 LIB = bin/libcoro.a
