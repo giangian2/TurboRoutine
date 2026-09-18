@@ -16,6 +16,26 @@
 #include <time.h>
 #include <unistd.h>
 
+/*
+ * Scope-based cleanup (GCC/Clang extension) for TurboCo*, local to this
+ * file: co_destroy() also needs the owning pool, which CO_POOL_AUTO's single-
+ * pointer cleanup signature has no room for, so the pool is stashed in
+ * user[0] right after a successful co_create() -- user[] is otherwise
+ * unused by this demo (see Coro.h's "free for the scheduler" note).
+ *
+ *   TurboCo* co CO_AUTO = co_create(pool, fn, arg);
+ *   if (!co) return 1;
+ *   co->user[0] = pool;
+ *   ...
+ *   // destroyed automatically here
+ */
+static void co_auto_destroy(TurboCo** co)
+{
+    if (*co)
+        co_destroy((CoPool*)(*co)->user[0], *co);
+}
+#define CO_AUTO __attribute__((cleanup(co_auto_destroy)))
+
 /* ---- 1. generator -------------------------------------------------------- */
 
 #define GEN_COUNT 5
@@ -34,9 +54,10 @@ static int demo_generator(CoPool* pool)
 {
     puts("1. generator");
 
-    TurboCo* co = co_create(pool, squares, (void*)(uintptr_t)GEN_COUNT);
+    TurboCo* co CO_AUTO = co_create(pool, squares, (void*)(uintptr_t)GEN_COUNT);
     if (!co)
         return 1;
+    co->user[0] = pool;
 
     int      ok = 1;
     uint64_t v  = co_resume(co, 42);
@@ -49,7 +70,6 @@ static int demo_generator(CoPool* pool)
     ok &= v == GEN_COUNT;
     printf("  generator returned %lu -- %s\n", (unsigned long)v, ok ? "ok" : "FAILED");
 
-    co_destroy(pool, co);
     return !ok;
 }
 
@@ -75,9 +95,10 @@ static int demo_slicing(CoPool* pool)
 {
     puts("2. slicing");
 
-    TurboCo* co = co_create(pool, long_sum, NULL);
+    TurboCo* co CO_AUTO = co_create(pool, long_sum, NULL);
     if (!co)
         return 1;
+    co->user[0] = pool;
 
     uint64_t sum    = 0;
     int      slices = 0;
@@ -92,7 +113,6 @@ static int demo_slicing(CoPool* pool)
     printf("  %d iterations, budget %d: %d slices, sum %lu -- %s\n", SLICE_ITERATIONS, CO_BUDGET,
            slices, (unsigned long)sum, ok ? "ok" : "FAILED");
 
-    co_destroy(pool, co);
     return !ok;
 }
 
@@ -250,9 +270,10 @@ static int demo_cost(CoPool* pool)
 {
     puts("4. cost");
 
-    TurboCo* co = co_create(pool, echo_plus_one, NULL);
+    TurboCo* co CO_AUTO = co_create(pool, echo_plus_one, NULL);
     if (!co)
         return 1;
+    co->user[0] = pool;
 
     struct timespec start, end;
     uint64_t        v = 0;
@@ -268,13 +289,13 @@ static int demo_cost(CoPool* pool)
     printf("  %ld round trips: %.2f ns each, %.2f ns per switch -- %s\n", ROUND_TRIPS, ns, ns / 2,
            ok ? "ok" : "FAILED");
 
-    co_destroy(pool, co); /* abandoned mid-loop: releasing the slot is enough */
+    /* abandoned mid-loop: releasing the slot on scope exit is enough */
     return !ok;
 }
 
 int main(void)
 {
-    CoPool* pool = co_pool_create(JOBS + 1);
+    CoPool* pool CO_POOL_AUTO = co_pool_create(JOBS + 1);
     if (!pool)
     {
         fprintf(stderr, "coroutine pool creation failed\n");
@@ -287,7 +308,6 @@ int main(void)
     failures += demo_migration(pool);
     failures += demo_cost(pool);
 
-    co_pool_free(pool);
     printf("%s\n", failures ? "SOME CHECKS FAILED" : "all checks passed");
     return failures != 0;
 }

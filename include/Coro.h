@@ -92,6 +92,24 @@ typedef struct
 CoPool* co_pool_create(size_t nslots);
 void    co_pool_free(CoPool* pool);
 
+/*
+ * Scope-based cleanup (GCC/Clang extension): a CoPool* declared with this
+ * attribute is passed to co_pool_free() when it goes out of scope, on every
+ * exit path (including an early return), no explicit co_pool_free() call
+ * needed. co_pool_free() already tolerates NULL, so a failed co_pool_create()
+ * cleans up safely too.
+ *
+ *   CoPool* pool CO_POOL_AUTO = co_pool_create(n);
+ *   if (!pool) return 1;
+ *   ...
+ *   // freed automatically here
+ */
+static inline void co_pool_auto_cleanup(CoPool** pool)
+{
+    co_pool_free(*pool);
+}
+#define CO_POOL_AUTO __attribute__((cleanup(co_pool_auto_cleanup)))
+
 /* ---- lifecycle ------------------------------------------------------------ */
 
 /*
